@@ -980,6 +980,7 @@ FodyWeavers.xsd
 *.dylib
 
 # Go build output
+/relay
 /relay-server
 /endpoint
 
@@ -1913,7 +1914,9 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 
-### VisualStudio Patch ###
-# Additional files built by Visual Studio
-
 # End of https://www.toptal.com/developers/gitignore/api/windows,linux,macos,visualstudiocode,visualstudio,jetbrains+all,go,react,node,python
+
+# Custom Ignores for Straw Proxy OpenAPI and Client Generation
+client/
+docs/openapi.yaml
+docs/api-reference.html
