@@ -1,3 +1,5 @@
+.lint-checkpoints/
+
 temp_build/
 *tmp*/
 **/*repomix*
