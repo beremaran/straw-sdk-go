@@ -13,11 +13,6 @@ Thank you for your interest in contributing to the Straw Proxy project.
 4. **Test**: Ensure all tests pass.
 
     ```bash
-    # Dockerized dev environment (recommended)
-    ./scripts/dev.sh test
-    ./scripts/dev.sh lint
-
-    # Or use Makefile targets
     make test
     make lint
     ```
