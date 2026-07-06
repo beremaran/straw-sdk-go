@@ -87,6 +87,50 @@ func (e *APIError) Error() string {
 	return e.Response.Message
 }
 
+// StreamFrameType identifies one binary frame from POST /api/v1/requests:stream.
+type StreamFrameType byte
+
+const (
+	// StreamFrameMetadata carries request_id, upstream status, and headers.
+	StreamFrameMetadata StreamFrameType = 1
+	// StreamFrameBody carries raw upstream response bytes.
+	StreamFrameBody StreamFrameType = 2
+	// StreamFrameTrailers carries upstream response trailers.
+	StreamFrameTrailers StreamFrameType = 3
+	// StreamFrameEnd carries terminal timing.
+	StreamFrameEnd StreamFrameType = 4
+	// StreamFrameError carries a public ErrorResponse after metadata was sent.
+	StreamFrameError StreamFrameType = 5
+)
+
+// StreamMetadata is the first successful streaming frame.
+type StreamMetadata struct {
+	RequestID string   `json:"request_id"`
+	Status    int      `json:"status"`
+	Headers   []Header `json:"headers,omitempty"`
+}
+
+// StreamTrailers carries upstream response trailers.
+type StreamTrailers struct {
+	Headers []Header `json:"headers,omitempty"`
+}
+
+// StreamEnd carries final request timing.
+type StreamEnd struct {
+	Timing Timing `json:"timing"`
+}
+
+// StreamFrame is one decoded frame from the streaming endpoint.
+type StreamFrame struct {
+	Type      StreamFrameType
+	Metadata  *StreamMetadata
+	Body      []byte
+	Trailers  *StreamTrailers
+	End       *StreamEnd
+	Error     *ErrorResponse
+	RequestID string
+}
+
 func (r *Request) applyReplayableDefault() {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
