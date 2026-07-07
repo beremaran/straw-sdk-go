@@ -26,10 +26,12 @@ const (
 // NATSConn is the minimal request/reply surface the SDK session runtime needs.
 type NATSConn interface {
 	Request(subject string, data []byte, timeout time.Duration) (*nats.Msg, error)
+	Subscribe(subject string, cb nats.MsgHandler) (*nats.Subscription, error)
+	Flush() error
+	Publish(subject string, data []byte) error
 }
 
-// AssignmentServer is the temporary bridge to the assignment loop. Tasks 26-28
-// move this protocol machinery into the SDK.
+// AssignmentServer serves per-session assignments and reports active requests.
 type AssignmentServer interface {
 	ActiveRequests() uint32
 	Serve(stop <-chan struct{}) error

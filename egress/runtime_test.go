@@ -53,6 +53,16 @@ func (c *fakeNATSConn) Request(subject string, data []byte, _ time.Duration) (*n
 	return &nats.Msg{Data: raw}, nil
 }
 
+func (c *fakeNATSConn) Subscribe(string, nats.MsgHandler) (*nats.Subscription, error) {
+	return nil, errors.New("subscribe not implemented")
+}
+
+func (c *fakeNATSConn) Flush() error { return nil }
+
+func (c *fakeNATSConn) Publish(string, []byte) error {
+	return errors.New("publish not implemented")
+}
+
 func assertDistinctNonces(t *testing.T, nonces [][]byte) {
 	t.Helper()
 

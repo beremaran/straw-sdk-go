@@ -39,6 +39,18 @@ type Executor interface {
 	Execute(ctx context.Context, start *strawpb.RequestStart, body []byte, attempt uint32, send func(*strawpb.StreamFrame)) []*strawpb.StreamFrame
 }
 
+// TenantExecutor is implemented by executors that need the tenant id while
+// executing a decoded HTTP assignment.
+type TenantExecutor interface {
+	ExecuteWithTenant(ctx context.Context, tenantID string, start *strawpb.RequestStart, body []byte, attempt uint32, send func(*strawpb.StreamFrame)) []*strawpb.StreamFrame
+}
+
+// BodyRefResolver downloads a request body reference. It is optional and only
+// used when Control sends BodyRef frames.
+type BodyRefResolver interface {
+	DownloadBodyRef(ctx context.Context, frame *strawpb.BodyRefFrame) ([]byte, *strawpb.ErrorFrame)
+}
+
 // Identity holds the stable identity a worker registers with.
 type Identity struct {
 	WorkerID     string
