@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"net"
 	"slices"
 	"time"
 	"unicode"
@@ -49,6 +50,17 @@ type TenantExecutor interface {
 // used when Control sends BodyRef frames.
 type BodyRefResolver interface {
 	DownloadBodyRef(ctx context.Context, frame *strawpb.BodyRefFrame) ([]byte, *strawpb.ErrorFrame)
+}
+
+// TunnelOpener validates and opens raw CONNECT tunnel upstream connections.
+type TunnelOpener interface {
+	OpenTunnel(ctx context.Context, start *strawpb.RequestStart) (net.Conn, TunnelTarget, *strawpb.ErrorFrame)
+}
+
+// TunnelTarget is the already-validated raw tunnel destination.
+type TunnelTarget struct {
+	Host string
+	Port uint32
 }
 
 // Identity holds the stable identity a worker registers with.

@@ -3,6 +3,8 @@ package egress
 import (
 	"context"
 	"errors"
+	"io"
+	"net"
 	"net/http"
 	"sync"
 	"testing"
@@ -16,6 +18,8 @@ import (
 const (
 	sdkTestWorker  = "sdk_worker"
 	sdkTestSession = "sdk_session"
+	testTunnelHost = "tunnel.test"
+	testCancel     = "client_disconnect"
 )
 
 type assignmentFakeConn struct {
@@ -104,6 +108,16 @@ func (e *scriptedExecutor) Execute(ctx context.Context, _ *strawpb.RequestStart,
 	}
 
 	return e.result
+}
+
+type fakeTunnelOpener struct {
+	conn   net.Conn
+	target TunnelTarget
+	err    *strawpb.ErrorFrame
+}
+
+func (o fakeTunnelOpener) OpenTunnel(context.Context, *strawpb.RequestStart) (net.Conn, TunnelTarget, *strawpb.ErrorFrame) {
+	return o.conn, o.target, o.err
 }
 
 func TestSDKWorkerServeSubscribesAndFlushesAssignmentSubject(t *testing.T) {
@@ -256,7 +270,7 @@ func TestSDKDecodedRuntimeCancellationAndExecutorError(t *testing.T) {
 	}()
 	frames <- requestStartFrame(1, "http://example.com/")
 	<-started
-	frames <- &strawpb.StreamFrame{StreamSeq: 2, Attempt: 1, Payload: &strawpb.StreamFrame_Cancel{Cancel: &strawpb.CancelFrame{Reason: "client_disconnect"}}}
+	frames <- &strawpb.StreamFrame{StreamSeq: 2, Attempt: 1, Payload: &strawpb.StreamFrame_Cancel{Cancel: &strawpb.CancelFrame{Reason: testCancel}}}
 
 	var cancelled *strawpb.StreamFrame
 	for cancelled == nil {
@@ -265,7 +279,7 @@ func TestSDKDecodedRuntimeCancellationAndExecutorError(t *testing.T) {
 			cancelled = frame
 		}
 	}
-	if got := cancelled.GetCancelled().GetReason(); got != "client_disconnect" {
+	if got := cancelled.GetCancelled().GetReason(); got != testCancel {
 		t.Fatalf("cancel reason = %q", got)
 	}
 	<-done
@@ -285,6 +299,123 @@ func TestSDKDecodedRuntimeCancellationAndExecutorError(t *testing.T) {
 	}
 }
 
+func TestSDKRawTunnelRuntimeDataFlowAndUploadCredit(t *testing.T) {
+	t.Parallel()
+
+	local, remote := net.Pipe()
+	defer func() { _ = remote.Close() }()
+
+	conn := newAssignmentFakeConn()
+	worker, err := NewWorker(WorkerOptions{
+		Conn:      conn,
+		Identity:  Identity{WorkerID: sdkTestWorker},
+		Executor:  &scriptedExecutor{},
+		Tunnels:   fakeTunnelOpener{conn: local, target: TunnelTarget{Host: testTunnelHost, Port: 443}},
+		SessionID: sdkTestSession,
+	})
+	if err != nil {
+		t.Fatalf("NewWorker: %v", err)
+	}
+
+	req := &strawpb.AssignRequest{Attempt: 1, InitialUploadCreditBytes: 1 << 20, InitialDownloadCreditBytes: 1 << 20}
+	env := assignmentEnvelope(req)
+	frames := make(chan *strawpb.StreamFrame, 4)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		worker.runDecodedRequest(ctx, cancel, req, env, frames, "e2c")
+		close(done)
+	}()
+
+	frames <- rawTunnelStartFrame(1)
+	if frame := conn.nextFrame(t); frame.GetOutboundStart().GetTargetHost() != testTunnelHost {
+		t.Fatalf("first frame = %#v, want tunnel OutboundStart", frame)
+	}
+	if frame := conn.nextFrame(t); frame.GetResponseStart().GetStatus() != 200 {
+		t.Fatalf("second frame = %#v, want 200 ResponseStart", frame)
+	}
+
+	frames <- &strawpb.StreamFrame{StreamSeq: 2, Attempt: 1, Payload: &strawpb.StreamFrame_Data{Data: &strawpb.DataFrame{Offset: 0, Data: []byte("up")}}}
+	buf := make([]byte, 2)
+	_, err = io.ReadFull(remote, buf)
+	if err != nil {
+		t.Fatalf("read tunnel upload: %v", err)
+	}
+	if string(buf) != "up" {
+		t.Fatalf("tunnel upload = %q, want up", buf)
+	}
+	if frame := conn.nextFrame(t); frame.GetCredit().GetUploadCreditBytes() != 2 {
+		t.Fatalf("upload credit frame = %#v, want 2 bytes", frame)
+	}
+
+	go func() { _, _ = remote.Write([]byte("down")) }()
+	if frame := nextPublishedData(t, conn); string(frame.GetData().GetData()) != "down" {
+		t.Fatalf("download frame = %#v, want down data", frame)
+	}
+	_ = remote.Close()
+	if frame := nextPublishedEnd(t, conn); frame.GetEnd() == nil {
+		t.Fatalf("terminal frame = %#v, want EndFrame", frame)
+	}
+	<-done
+}
+
+func TestSDKRawTunnelRuntimeDownloadCreditAndCancellation(t *testing.T) {
+	t.Parallel()
+
+	local, remote := net.Pipe()
+	defer func() { _ = remote.Close() }()
+
+	conn := newAssignmentFakeConn()
+	worker, err := NewWorker(WorkerOptions{
+		Conn:      conn,
+		Identity:  Identity{WorkerID: sdkTestWorker},
+		Executor:  &scriptedExecutor{},
+		Tunnels:   fakeTunnelOpener{conn: local, target: TunnelTarget{Host: testTunnelHost, Port: 443}},
+		SessionID: sdkTestSession,
+	})
+	if err != nil {
+		t.Fatalf("NewWorker: %v", err)
+	}
+
+	req := &strawpb.AssignRequest{Attempt: 1, InitialUploadCreditBytes: 1 << 20, InitialDownloadCreditBytes: 1}
+	env := assignmentEnvelope(req)
+	frames := make(chan *strawpb.StreamFrame, 4)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		worker.runDecodedRequest(ctx, cancel, req, env, frames, "e2c")
+		close(done)
+	}()
+
+	frames <- rawTunnelStartFrame(1)
+	_ = conn.nextFrame(t)
+	_ = conn.nextFrame(t)
+
+	go func() { _, _ = remote.Write([]byte("ab")) }()
+	if got := string(nextPublishedData(t, conn).GetData().GetData()); got != "a" {
+		t.Fatalf("first download = %q, want a", got)
+	}
+	select {
+	case frame := <-conn.publishCh:
+		t.Fatalf("unexpected frame before credit: %#v", frame)
+	case <-time.After(50 * time.Millisecond):
+	}
+	frames <- &strawpb.StreamFrame{StreamSeq: 2, Attempt: 1, Payload: &strawpb.StreamFrame_Credit{Credit: &strawpb.CreditFrame{DownloadCreditBytes: 1}}}
+	if got := string(nextPublishedData(t, conn).GetData().GetData()); got != "b" {
+		t.Fatalf("second download = %q, want b", got)
+	}
+
+	frames <- &strawpb.StreamFrame{StreamSeq: 3, Attempt: 1, Payload: &strawpb.StreamFrame_Cancel{Cancel: &strawpb.CancelFrame{Reason: testCancel}}}
+	if got := nextPublishedCancelled(t, conn).GetCancelled().GetReason(); got != testCancel {
+		t.Fatalf("cancel reason = %q, want %s", got, testCancel)
+	}
+	<-done
+}
+
 func assignmentEnvelope(req *strawpb.AssignRequest) *strawpb.Envelope {
 	return &strawpb.Envelope{
 		RequestId:      "sdk_req",
@@ -297,6 +428,49 @@ func assignmentEnvelope(req *strawpb.AssignRequest) *strawpb.Envelope {
 
 func requestStartFrame(seq uint64, url string) *strawpb.StreamFrame {
 	return &strawpb.StreamFrame{StreamSeq: seq, Attempt: 1, Payload: &strawpb.StreamFrame_RequestStart{RequestStart: &strawpb.RequestStart{Mode: strawpb.RequestMode_REQUEST_MODE_DECODED_HTTP, Method: http.MethodGet, Url: url}}}
+}
+
+func rawTunnelStartFrame(seq uint64) *strawpb.StreamFrame {
+	return &strawpb.StreamFrame{StreamSeq: seq, Attempt: 1, Payload: &strawpb.StreamFrame_RequestStart{RequestStart: &strawpb.RequestStart{
+		Mode:              strawpb.RequestMode_REQUEST_MODE_RAW_TUNNEL,
+		Method:            http.MethodConnect,
+		Url:               "connect://" + testTunnelHost + ":443",
+		RedirectPolicy:    strawpb.RedirectPolicy_REDIRECT_POLICY_NO_FOLLOW,
+		DestinationPolicy: &strawpb.DestinationPolicy{ResolutionMode: strawpb.DestinationResolutionMode_DESTINATION_RESOLUTION_DIRECT_LOCAL},
+	}}}
+}
+
+func nextPublishedData(t *testing.T, conn *assignmentFakeConn) *strawpb.StreamFrame {
+	t.Helper()
+
+	for {
+		frame := conn.nextFrame(t)
+		if frame.GetData() != nil {
+			return frame
+		}
+	}
+}
+
+func nextPublishedEnd(t *testing.T, conn *assignmentFakeConn) *strawpb.StreamFrame {
+	t.Helper()
+
+	for {
+		frame := conn.nextFrame(t)
+		if frame.GetEnd() != nil {
+			return frame
+		}
+	}
+}
+
+func nextPublishedCancelled(t *testing.T, conn *assignmentFakeConn) *strawpb.StreamFrame {
+	t.Helper()
+
+	for {
+		frame := conn.nextFrame(t)
+		if frame.GetCancelled() != nil {
+			return frame
+		}
+	}
 }
 
 func framesWith(frames ...*strawpb.StreamFrame) chan *strawpb.StreamFrame {
