@@ -543,3 +543,6 @@ $RECYCLE.BIN/
 # Compiled service binaries
 /control
 /egress
+
+# Local generated development fixtures
+.dev/
