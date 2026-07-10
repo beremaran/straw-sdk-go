@@ -8,6 +8,8 @@ import (
 	strawpb "github.com/beremaran/straw/v2/api/proto/straw/v1"
 )
 
+const sdkTypesTestChrome120 = "chrome_120"
+
 const (
 	testWorker1 = "worker-1"
 	testWcred1  = "wcred_1"
@@ -66,7 +68,7 @@ func TestBuildRegisterRequestCopiesFingerprintProfiles(t *testing.T) {
 		t.Fatalf("GenerateKey: %v", err)
 	}
 
-	profiles := []string{"chrome_120"}
+	profiles := []string{sdkTypesTestChrome120}
 	req, err := BuildRegisterRequest(
 		Identity{WorkerID: testWorker1, CredentialID: testWcred1, ExecutorType: testEgress, PrivateKey: priv},
 		Capabilities{SupportedFingerprintProfiles: profiles},
@@ -76,7 +78,7 @@ func TestBuildRegisterRequestCopiesFingerprintProfiles(t *testing.T) {
 	}
 
 	profiles[0] = "mutated_after_build"
-	if got := req.GetSupportedFingerprintProfiles(); !slices.Equal(got, []string{"chrome_120"}) {
+	if got := req.GetSupportedFingerprintProfiles(); !slices.Equal(got, []string{sdkTypesTestChrome120}) {
 		t.Fatalf("supported fingerprint profiles = %v, want copied [chrome_120]", got)
 	}
 	if req.GetProtocolMinor() != 1 {

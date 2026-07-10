@@ -16,10 +16,11 @@ import (
 )
 
 const (
-	sdkTestWorker  = "sdk_worker"
-	sdkTestSession = "sdk_session"
-	testTunnelHost = "tunnel.test"
-	testCancel     = "client_disconnect"
+	sdkTestWorker           = "sdk_worker"
+	sdkTestSession          = "sdk_session"
+	assignmentTestChrome120 = "chrome_120"
+	testTunnelHost          = "tunnel.test"
+	testCancel              = "client_disconnect"
 )
 
 type assignmentFakeConn struct {
@@ -83,10 +84,11 @@ func (c *assignmentFakeConn) nextFrame(t *testing.T) *strawpb.StreamFrame {
 }
 
 type scriptedExecutor struct {
-	result  []*strawpb.StreamFrame
-	stream  []*strawpb.StreamFrame
-	block   chan struct{}
-	started chan struct{}
+	result          []*strawpb.StreamFrame
+	stream          []*strawpb.StreamFrame
+	block           chan struct{}
+	started         chan struct{}
+	outboundProfile string
 }
 
 func (e *scriptedExecutor) Execute(ctx context.Context, _ *strawpb.RequestStart, _ []byte, attempt uint32, send func(*strawpb.StreamFrame)) []*strawpb.StreamFrame {
@@ -94,7 +96,7 @@ func (e *scriptedExecutor) Execute(ctx context.Context, _ *strawpb.RequestStart,
 		close(e.started)
 	}
 	if send != nil {
-		send(&strawpb.StreamFrame{Attempt: attempt, Payload: &strawpb.StreamFrame_OutboundStart{OutboundStart: &strawpb.OutboundStartFrame{TargetHost: "example.com", TargetPort: 80}}})
+		send(&strawpb.StreamFrame{Attempt: attempt, Payload: &strawpb.StreamFrame_OutboundStart{OutboundStart: &strawpb.OutboundStartFrame{TargetHost: "example.com", TargetPort: 80, ExecutedFingerprintProfile: e.outboundProfile}}})
 		for _, frame := range e.stream {
 			send(frame)
 		}
@@ -245,6 +247,40 @@ func TestSDKDecodedRuntimeStreamsResponseAndHonorsDownloadCredit(t *testing.T) {
 	if conn.nextFrame(t).GetEnd() == nil {
 		t.Fatal("missing EndFrame")
 	}
+	<-done
+}
+
+func TestSDKDecodedRuntimePreservesExecutedFingerprintOnWire(t *testing.T) {
+	t.Parallel()
+
+	conn := newAssignmentFakeConn()
+	worker, err := NewWorker(WorkerOptions{
+		Conn:      conn,
+		Identity:  Identity{WorkerID: sdkTestWorker},
+		Executor:  &scriptedExecutor{outboundProfile: assignmentTestChrome120},
+		SessionID: sdkTestSession,
+	})
+	if err != nil {
+		t.Fatalf("NewWorker: %v", err)
+	}
+
+	req := &strawpb.AssignRequest{Attempt: 1, InitialUploadCreditBytes: 1 << 20, InitialDownloadCreditBytes: 1 << 20}
+	env := assignmentEnvelope(req)
+	frames := make(chan *strawpb.StreamFrame, 4)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		worker.runDecodedRequest(ctx, cancel, req, env, frames, "e2c")
+		close(done)
+	}()
+	frames <- requestStartFrame(1, "http://example.com/")
+
+	first := conn.nextFrame(t)
+	if got := first.GetOutboundStart().GetExecutedFingerprintProfile(); got != assignmentTestChrome120 {
+		t.Fatalf("executed fingerprint = %q, want chrome_120", got)
+	}
+	frames <- &strawpb.StreamFrame{StreamSeq: 2, Attempt: 1, Payload: &strawpb.StreamFrame_Cancel{Cancel: &strawpb.CancelFrame{Reason: testCancel}}}
 	<-done
 }
 
