@@ -22,6 +22,8 @@ const (
 
 	// ProtocolMajor is the worker protocol major version this SDK speaks.
 	ProtocolMajor uint32 = 1
+	// ProtocolMinor is the worker protocol minor version this SDK speaks.
+	ProtocolMinor uint32 = 1
 )
 
 var (
@@ -73,15 +75,16 @@ type Identity struct {
 
 // Capabilities are the capability claims a worker advertises at registration.
 type Capabilities struct {
-	AllowedPools          []*strawpb.RegisterRequest_PoolRef
-	Tags                  []string
-	Countries             []string
-	Regions               []string
-	IPTypes               []string
-	SupportedIngressModes []string
-	MaxConcurrency        uint32
-	SoftwareVersion       string
-	InitialDraining       bool
+	AllowedPools                 []*strawpb.RegisterRequest_PoolRef
+	Tags                         []string
+	Countries                    []string
+	Regions                      []string
+	IPTypes                      []string
+	SupportedIngressModes        []string
+	SupportedFingerprintProfiles []string
+	MaxConcurrency               uint32
+	SoftwareVersion              string
+	InitialDraining              bool
 }
 
 // Capacity describes the executor's current admission state when an
@@ -120,22 +123,23 @@ func BuildRegisterRequest(id Identity, caps Capabilities) (*strawpb.RegisterRequ
 	}
 
 	req := &strawpb.RegisterRequest{
-		WorkerId:              id.WorkerID,
-		ExecutorType:          id.ExecutorType,
-		CredentialId:          id.CredentialID,
-		ProtocolMajor:         ProtocolMajor,
-		ProtocolMinor:         0,
-		SoftwareVersion:       caps.SoftwareVersion,
-		AllowedPools:          pools,
-		Tags:                  caps.Tags,
-		Countries:             caps.Countries,
-		Regions:               caps.Regions,
-		IpTypes:               caps.IPTypes,
-		SupportedIngressModes: caps.SupportedIngressModes,
-		MaxConcurrency:        caps.MaxConcurrency,
-		InitialDraining:       caps.InitialDraining,
-		Nonce:                 nonce,
-		IssuedAtUnixMs:        time.Now().UnixMilli(),
+		WorkerId:                     id.WorkerID,
+		ExecutorType:                 id.ExecutorType,
+		CredentialId:                 id.CredentialID,
+		ProtocolMajor:                ProtocolMajor,
+		ProtocolMinor:                ProtocolMinor,
+		SoftwareVersion:              caps.SoftwareVersion,
+		AllowedPools:                 pools,
+		Tags:                         caps.Tags,
+		Countries:                    caps.Countries,
+		Regions:                      caps.Regions,
+		IpTypes:                      caps.IPTypes,
+		SupportedIngressModes:        caps.SupportedIngressModes,
+		SupportedFingerprintProfiles: slices.Clone(caps.SupportedFingerprintProfiles),
+		MaxConcurrency:               caps.MaxConcurrency,
+		InitialDraining:              caps.InitialDraining,
+		Nonce:                        nonce,
+		IssuedAtUnixMs:               time.Now().UnixMilli(),
 	}
 	req.SignedToken = strawpb.SignRegistration(id.PrivateKey, req)
 

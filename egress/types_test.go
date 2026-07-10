@@ -58,6 +58,32 @@ func TestBuildRegisterRequestSignsVerifiably(t *testing.T) {
 	}
 }
 
+func TestBuildRegisterRequestCopiesFingerprintProfiles(t *testing.T) {
+	t.Parallel()
+
+	_, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("GenerateKey: %v", err)
+	}
+
+	profiles := []string{"chrome_120"}
+	req, err := BuildRegisterRequest(
+		Identity{WorkerID: testWorker1, CredentialID: testWcred1, ExecutorType: testEgress, PrivateKey: priv},
+		Capabilities{SupportedFingerprintProfiles: profiles},
+	)
+	if err != nil {
+		t.Fatalf("BuildRegisterRequest: %v", err)
+	}
+
+	profiles[0] = "mutated_after_build"
+	if got := req.GetSupportedFingerprintProfiles(); !slices.Equal(got, []string{"chrome_120"}) {
+		t.Fatalf("supported fingerprint profiles = %v, want copied [chrome_120]", got)
+	}
+	if req.GetProtocolMinor() != 1 {
+		t.Fatalf("protocol minor = %d, want 1 for fingerprint capabilities", req.GetProtocolMinor())
+	}
+}
+
 func TestBuildHeartbeat(t *testing.T) {
 	t.Parallel()
 
