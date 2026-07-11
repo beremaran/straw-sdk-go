@@ -1,6 +1,6 @@
 package egress
 
-// SDK-only conformance test (docs/implementation-history.md#p2-24): proves the public sdk/egress
+// SDK-only conformance test (docs/public/architecture.md): proves the public sdk/egress
 // API — Register, Heartbeat, NewWorker/Serve — speaks the real NATS wire
 // protocol against a stub executor with no internal/* imports. It plays the
 // Control role by hand (subscribe/reply, exact-session assign, c2e/e2c
@@ -202,7 +202,7 @@ func registerAndHeartbeatOnControl(t *testing.T, controlConn *nats.Conn) {
 }
 
 // runAssignment plays the Control side of one decoded-HTTP assignment: it
-// subscribes to e2c before assigning (per docs/planning/12-nats-protocol.md
+// subscribes to e2c before assigning (per docs/public/architecture.md
 // subscription ordering), sends AssignRequest, waits for ACCEPTED, publishes
 // RequestStart, and collects the response StreamFrames.
 func runAssignment(t *testing.T, controlConn *nats.Conn, assignSubject, sessionID, requestID string) []*strawpb.StreamFrame {

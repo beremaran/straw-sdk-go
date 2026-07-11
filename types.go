@@ -19,7 +19,7 @@ type Header struct {
 	ValueBase64 string `json:"value_base64"`
 }
 
-// RequestBody is the P0 inline request body.
+// RequestBody carries an inline base64-encoded request body.
 type RequestBody struct {
 	Mode       string `json:"mode"`
 	DataBase64 string `json:"data_base64,omitempty"`

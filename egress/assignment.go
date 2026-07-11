@@ -310,8 +310,8 @@ func (w *Worker) startDecodedExecution(ctx context.Context, req *strawpb.AssignR
 			seq = w.publishResponseProgress(ctx, e2cSubject, env, downloadCredit, seq, frame)
 		}
 
-		if exec, ok := w.executor.(TenantExecutor); ok {
-			resultCh <- exec.ExecuteWithTenant(ctx, env.GetTenantId(), start, body, req.GetAttempt(), send)
+		if exec, ok := w.executor.(DeploymentExecutor); ok {
+			resultCh <- exec.ExecuteWithDeployment(ctx, env.GetTenantId(), start, body, req.GetAttempt(), send)
 
 			return
 		}
@@ -560,8 +560,8 @@ func (b *tunnelFrameBuilder) error(frame *strawpb.ErrorFrame) *strawpb.StreamFra
 	return b.next(&strawpb.StreamFrame{Payload: &strawpb.StreamFrame_Error{Error: frame}})
 }
 
-func (w *Worker) readRequestBody(ctx context.Context, validator *streamValidator, frames <-chan *strawpb.StreamFrame, expectedUploadBytes int64, tenantID, requestID string) (*strawpb.RequestStart, []byte, *strawpb.ErrorFrame, bool) {
-	state := &requestBodyState{tenantID: tenantID, requestID: requestID, refs: w.bodyRefs}
+func (w *Worker) readRequestBody(ctx context.Context, validator *streamValidator, frames <-chan *strawpb.StreamFrame, expectedUploadBytes int64, deploymentID, requestID string) (*strawpb.RequestStart, []byte, *strawpb.ErrorFrame, bool) {
+	state := &requestBodyState{deploymentID: deploymentID, requestID: requestID, refs: w.bodyRefs}
 	if expectedUploadBytes > 0 {
 		state.expected = uint64(expectedUploadBytes)
 	}
@@ -588,14 +588,14 @@ func (w *Worker) readRequestBody(ctx context.Context, validator *streamValidator
 }
 
 type requestBodyState struct {
-	start     *strawpb.RequestStart
-	body      []byte
-	received  uint64
-	expected  uint64
-	tenantID  string
-	requestID string
-	refs      BodyRefResolver
-	failure   *strawpb.ErrorFrame
+	start        *strawpb.RequestStart
+	body         []byte
+	received     uint64
+	expected     uint64
+	deploymentID string
+	requestID    string
+	refs         BodyRefResolver
+	failure      *strawpb.ErrorFrame
 }
 
 func (s *requestBodyState) complete() bool {
@@ -633,7 +633,7 @@ func (s *requestBodyState) acceptBodyRef(ctx context.Context, frame *strawpb.Bod
 		return false
 	}
 
-	if !bodyRefObjectKeyScoped(frame, s.tenantID, s.requestID) {
+	if !bodyRefObjectKeyScoped(frame, s.deploymentID, s.requestID) {
 		s.failure = &strawpb.ErrorFrame{Code: strawpb.ErrorCode_ERROR_CODE_BODY_REF_UNAVAILABLE, Details: map[string]string{errorFactDetailKey: "body_ref_scope_mismatch"}}
 
 		return false
@@ -652,10 +652,10 @@ func (s *requestBodyState) acceptBodyRef(ctx context.Context, frame *strawpb.Bod
 	return true
 }
 
-func bodyRefObjectKeyScoped(frame *strawpb.BodyRefFrame, tenantID, requestID string) bool {
+func bodyRefObjectKeyScoped(frame *strawpb.BodyRefFrame, deploymentID, requestID string) bool {
 	key := frame.GetS3().GetObjectKey()
 
-	return strings.HasPrefix(key, "tenant/"+tenantID+"/request/"+requestID+"/request/")
+	return strings.HasPrefix(key, "tenant/"+deploymentID+"/request/"+requestID+"/request/")
 }
 
 func waitForResult(resultCh <-chan []*strawpb.StreamFrame, frames <-chan *strawpb.StreamFrame, validator *streamValidator, cancel context.CancelFunc, downloadCredit *responseCreditGate) ([]*strawpb.StreamFrame, bool, string) {

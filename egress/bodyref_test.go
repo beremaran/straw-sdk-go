@@ -87,10 +87,10 @@ func TestRequestBodyStateRejectsOutOfScopeBodyRef(t *testing.T) {
 	t.Parallel()
 
 	state := &requestBodyState{
-		start:     &strawpb.RequestStart{},
-		tenantID:  "ten_sdk",
-		requestID: "req_sdk",
-		refs:      staticBodyRefResolver{},
+		start:        &strawpb.RequestStart{},
+		deploymentID: "ten_sdk",
+		requestID:    "req_sdk",
+		refs:         staticBodyRefResolver{},
 	}
 	ok := state.acceptBodyRef(context.Background(), &strawpb.BodyRefFrame{
 		Ref: &strawpb.BodyRefFrame_S3{S3: &strawpb.S3BodyRef{

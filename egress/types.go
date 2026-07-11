@@ -42,10 +42,9 @@ type Executor interface {
 	Execute(ctx context.Context, start *strawpb.RequestStart, body []byte, attempt uint32, send func(*strawpb.StreamFrame)) []*strawpb.StreamFrame
 }
 
-// TenantExecutor is implemented by executors that need the tenant id while
-// executing a decoded HTTP assignment.
-type TenantExecutor interface {
-	ExecuteWithTenant(ctx context.Context, tenantID string, start *strawpb.RequestStart, body []byte, attempt uint32, send func(*strawpb.StreamFrame)) []*strawpb.StreamFrame
+// DeploymentExecutor receives the deployment scope used for connection reuse.
+type DeploymentExecutor interface {
+	ExecuteWithDeployment(ctx context.Context, deploymentID string, start *strawpb.RequestStart, body []byte, attempt uint32, send func(*strawpb.StreamFrame)) []*strawpb.StreamFrame
 }
 
 // BodyRefResolver downloads a request body reference. It is optional and only

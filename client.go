@@ -49,7 +49,7 @@ func WithHTTPClient(httpClient *http.Client) Option {
 	}
 }
 
-// Do submits a P0 REST request and returns the Straw success envelope.
+// Do submits a REST request and returns the Straw success envelope.
 func (c *Client) Do(ctx context.Context, req Request) (*Response, error) {
 	req.applyReplayableDefault()
 
