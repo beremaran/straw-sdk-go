@@ -210,9 +210,6 @@ func RegistrationSubject() string { return "straw.v1.control.register" }
 // HeartbeatSubject returns the NATS subject for worker heartbeats.
 func HeartbeatSubject() string { return "straw.v1.control.heartbeat" }
 
-// LogTelemetrySubject returns the transient Egress-to-Control log subject.
-func LogTelemetrySubject() string { return "straw.v1.control.logs" }
-
 // ControlInboxPrefix returns the reply-inbox prefix used by control clients.
 func ControlInboxPrefix() string { return "_INBOX.ctl" }
 

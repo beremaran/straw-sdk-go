@@ -4,15 +4,13 @@ import "net/http"
 
 // Request is the JSON envelope for POST /api/v1/requests.
 type Request struct {
-	Method             string        `json:"method"`
-	URL                string        `json:"url"`
-	Headers            []Header      `json:"headers,omitempty"`
-	Body               *RequestBody  `json:"body,omitempty"`
-	Routing            *RoutingHints `json:"routing,omitempty"`
-	FingerprintProfile string        `json:"fingerprint_profile,omitempty"`
-	TimeoutMs          uint64        `json:"timeout_ms,omitempty"`
-	Replayable         bool          `json:"replayable"`
-	CaptureHint        string        `json:"capture_hint,omitempty"`
+	Method             string       `json:"method"`
+	URL                string       `json:"url"`
+	Headers            []Header     `json:"headers,omitempty"`
+	Body               *RequestBody `json:"body,omitempty"`
+	FingerprintProfile string       `json:"fingerprint_profile,omitempty"`
+	TimeoutMs          uint64       `json:"timeout_ms,omitempty"`
+	Replayable         bool         `json:"replayable"`
 }
 
 // Header carries one ordered HTTP header value as base64-encoded bytes.
@@ -25,15 +23,6 @@ type Header struct {
 type RequestBody struct {
 	Mode       string `json:"mode"`
 	DataBase64 string `json:"data_base64,omitempty"`
-}
-
-// RoutingHints constrain worker selection.
-type RoutingHints struct {
-	Tags            []string `json:"tags,omitempty"`
-	Country         string   `json:"country,omitempty"`
-	Region          string   `json:"region,omitempty"`
-	IPType          string   `json:"ip_type,omitempty"`
-	StickySessionID string   `json:"sticky_session_id,omitempty"`
 }
 
 // Response is the Straw success envelope. Status is the upstream HTTP status;
@@ -85,50 +74,6 @@ func (e *APIError) Error() string {
 	}
 
 	return e.Response.Message
-}
-
-// StreamFrameType identifies one binary frame from POST /api/v1/requests:stream.
-type StreamFrameType byte
-
-const (
-	// StreamFrameMetadata carries request_id, upstream status, and headers.
-	StreamFrameMetadata StreamFrameType = 1
-	// StreamFrameBody carries raw upstream response bytes.
-	StreamFrameBody StreamFrameType = 2
-	// StreamFrameTrailers carries upstream response trailers.
-	StreamFrameTrailers StreamFrameType = 3
-	// StreamFrameEnd carries terminal timing.
-	StreamFrameEnd StreamFrameType = 4
-	// StreamFrameError carries a public ErrorResponse after metadata was sent.
-	StreamFrameError StreamFrameType = 5
-)
-
-// StreamMetadata is the first successful streaming frame.
-type StreamMetadata struct {
-	RequestID string   `json:"request_id"`
-	Status    int      `json:"status"`
-	Headers   []Header `json:"headers,omitempty"`
-}
-
-// StreamTrailers carries upstream response trailers.
-type StreamTrailers struct {
-	Headers []Header `json:"headers,omitempty"`
-}
-
-// StreamEnd carries final request timing.
-type StreamEnd struct {
-	Timing Timing `json:"timing"`
-}
-
-// StreamFrame is one decoded frame from the streaming endpoint.
-type StreamFrame struct {
-	Type      StreamFrameType
-	Metadata  *StreamMetadata
-	Body      []byte
-	Trailers  *StreamTrailers
-	End       *StreamEnd
-	Error     *ErrorResponse
-	RequestID string
 }
 
 func (r *Request) applyReplayableDefault() {
