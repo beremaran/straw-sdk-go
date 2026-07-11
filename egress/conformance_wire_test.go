@@ -1,7 +1,7 @@
 package egress
 
 // A tiny Core NATS wire-protocol broker for the SDK conformance test. The SDK
-// cannot import internal/testutil (see docs/tasks/p2/24), so this is a
+// cannot import internal/testutil (see docs/implementation-history.md#p2-24), so this is a
 // trimmed, package-local port of internal/testutil.FakeNATSServer: enough of
 // the NATS text protocol for the real nats.go client to register, heartbeat,
 // and run the full assignment/stream protocol against a genuine *nats.Conn

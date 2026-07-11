@@ -1,6 +1,6 @@
 package egress
 
-// SDK-only conformance test (docs/tasks/p2/24): proves the public sdk/egress
+// SDK-only conformance test (docs/implementation-history.md#p2-24): proves the public sdk/egress
 // API — Register, Heartbeat, NewWorker/Serve — speaks the real NATS wire
 // protocol against a stub executor with no internal/* imports. It plays the
 // Control role by hand (subscribe/reply, exact-session assign, c2e/e2c
