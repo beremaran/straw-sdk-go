@@ -12,7 +12,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	strawpb "github.com/beremaran/straw/v2/api/proto/straw/v1"
+	strawpb "github.com/beremaran/straw-oss/v2/api/proto/straw/v1"
 )
 
 func runtimeTestIdentity(t *testing.T, workerID string) Identity {
