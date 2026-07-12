@@ -455,7 +455,7 @@ func TestSDKRawTunnelRuntimeDownloadCreditAndCancellation(t *testing.T) {
 func assignmentEnvelope(req *strawpb.AssignRequest) *strawpb.Envelope {
 	return &strawpb.Envelope{
 		RequestId:      "sdk_req",
-		TenantId:       "ten_sdk",
+		DeploymentId:   "ten_sdk",
 		DeadlineUnixMs: time.Now().Add(time.Second).UnixMilli(),
 		Attempt:        req.GetAttempt(),
 		Payload:        &strawpb.Envelope_AssignRequest{AssignRequest: req},

@@ -29,7 +29,7 @@ func TestBuildRegisterRequestSignsVerifiably(t *testing.T) {
 	req, err := BuildRegisterRequest(
 		Identity{WorkerID: testWorker1, CredentialID: testWcred1, ExecutorType: testEgress, PrivateKey: priv},
 		Capabilities{
-			AllowedPools:          []*strawpb.RegisterRequest_PoolRef{{TenantId: testTenantA, PoolId: testPool1}},
+			AllowedPools:          []*strawpb.RegisterRequest_PoolRef{{DeploymentId: testTenantA, PoolId: testPool1}},
 			Tags:                  []string{"local"},
 			Countries:             []string{"AU"},
 			Regions:               []string{"wa"},
@@ -154,7 +154,7 @@ func TestEnvelopeRoundTrip(t *testing.T) {
 
 	env := &strawpb.Envelope{
 		RequestId:      "req_1",
-		TenantId:       testTenantA,
+		DeploymentId:   testTenantA,
 		TraceId:        "trace_1",
 		ProtocolMajor:  ProtocolMajor,
 		Attempt:        1,

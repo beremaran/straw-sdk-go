@@ -282,7 +282,7 @@ func (w *Worker) runDecodedRequest(ctx context.Context, cancel context.CancelFun
 		allowBodyRef:  w.bodyRefs != nil,
 	})
 
-	start, body, failure, ok := w.readRequestBody(ctx, validator, frames, req.GetExpectedUploadBytes(), env.GetTenantId(), env.GetRequestId())
+	start, body, failure, ok := w.readRequestBody(ctx, validator, frames, req.GetExpectedUploadBytes(), env.GetDeploymentId(), env.GetRequestId())
 	if !ok {
 		return
 	}
@@ -327,7 +327,7 @@ func (w *Worker) startDecodedExecution(ctx context.Context, req *strawpb.AssignR
 		}
 
 		if exec, ok := w.executor.(DeploymentExecutor); ok {
-			resultCh <- exec.ExecuteWithDeployment(ctx, env.GetTenantId(), start, body, req.GetAttempt(), send)
+			resultCh <- exec.ExecuteWithDeployment(ctx, env.GetDeploymentId(), start, body, req.GetAttempt(), send)
 
 			return
 		}
@@ -671,7 +671,7 @@ func (s *requestBodyState) acceptBodyRef(ctx context.Context, frame *strawpb.Bod
 func bodyRefObjectKeyScoped(frame *strawpb.BodyRefFrame, deploymentID, requestID string) bool {
 	key := frame.GetS3().GetObjectKey()
 
-	return strings.HasPrefix(key, "tenant/"+deploymentID+"/request/"+requestID+"/request/")
+	return strings.HasPrefix(key, "deployment/"+deploymentID+"/request/"+requestID+"/request/")
 }
 
 func waitForResult(resultCh <-chan []*strawpb.StreamFrame, frames <-chan *strawpb.StreamFrame, validator *streamValidator, cancel context.CancelFunc, downloadCredit *responseCreditGate) ([]*strawpb.StreamFrame, bool, string) {
@@ -774,7 +774,7 @@ func (w *Worker) publish(subject string, env *strawpb.Envelope, frames []*strawp
 	for _, frame := range frames {
 		out := &strawpb.Envelope{
 			RequestId:      env.GetRequestId(),
-			TenantId:       env.GetTenantId(),
+			DeploymentId:   env.GetDeploymentId(),
 			TraceId:        env.GetTraceId(),
 			DeadlineUnixMs: env.GetDeadlineUnixMs(),
 			ProtocolMajor:  ProtocolMajor,
@@ -807,7 +807,7 @@ func (w *Worker) reply(msg *nats.Msg, env *strawpb.Envelope, ack *strawpb.Assign
 	reply := &strawpb.Envelope{ProtocolMajor: ProtocolMajor, Payload: &strawpb.Envelope_AssignAck{AssignAck: ack}}
 	if env != nil {
 		reply.RequestId = env.GetRequestId()
-		reply.TenantId = env.GetTenantId()
+		reply.DeploymentId = env.GetDeploymentId()
 		reply.TraceId = env.GetTraceId()
 		reply.DeadlineUnixMs = env.GetDeadlineUnixMs()
 		reply.Attempt = env.GetAttempt()

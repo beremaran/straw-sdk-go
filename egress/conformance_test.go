@@ -19,9 +19,9 @@ import (
 )
 
 const (
-	conformanceWorkerID  = "wrk_conformance"
-	conformanceSessionID = "sess_conformance"
-	conformanceTenantID  = "ten_conformance"
+	conformanceWorkerID     = "wrk_conformance"
+	conformanceSessionID    = "sess_conformance"
+	conformanceDeploymentID = "ten_conformance"
 )
 
 // conformanceExecutor is the stub Executor: a static-response page, or a
@@ -251,7 +251,7 @@ func runAssignment(t *testing.T, controlConn *nats.Conn, assignSubject, sessionI
 
 	assignEnv := &strawpb.Envelope{
 		RequestId:      requestID,
-		TenantId:       conformanceTenantID,
+		DeploymentId:   conformanceDeploymentID,
 		DeadlineUnixMs: deadline.UnixMilli(),
 		ProtocolMajor:  ProtocolMajor,
 		Attempt:        1,
@@ -283,7 +283,7 @@ func runAssignment(t *testing.T, controlConn *nats.Conn, assignSubject, sessionI
 
 	startEnv := &strawpb.Envelope{
 		RequestId:      requestID,
-		TenantId:       conformanceTenantID,
+		DeploymentId:   conformanceDeploymentID,
 		DeadlineUnixMs: deadline.UnixMilli(),
 		ProtocolMajor:  ProtocolMajor,
 		Attempt:        1,

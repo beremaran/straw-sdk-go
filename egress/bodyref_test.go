@@ -94,7 +94,7 @@ func TestRequestBodyStateRejectsOutOfScopeBodyRef(t *testing.T) {
 	}
 	ok := state.acceptBodyRef(context.Background(), &strawpb.BodyRefFrame{
 		Ref: &strawpb.BodyRefFrame_S3{S3: &strawpb.S3BodyRef{
-			ObjectKey: "tenant/other/request/req_sdk/request/body",
+			ObjectKey: "deployment/other/request/req_sdk/request/body",
 			SignedUrl: "https://body.example",
 		}},
 	})
@@ -109,7 +109,7 @@ func TestRequestBodyStateRejectsOutOfScopeBodyRef(t *testing.T) {
 func bodyRefFrame(url string, size uint64, sha256Hex string, expiresUnixMs int64) *strawpb.BodyRefFrame {
 	return &strawpb.BodyRefFrame{
 		Ref: &strawpb.BodyRefFrame_S3{S3: &strawpb.S3BodyRef{
-			ObjectKey:     "tenant/ten_sdk/request/req_sdk/request/body",
+			ObjectKey:     "deployment/ten_sdk/request/req_sdk/request/body",
 			SignedUrl:     url,
 			ExpiresUnixMs: expiresUnixMs,
 		}},

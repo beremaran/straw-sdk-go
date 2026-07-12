@@ -111,7 +111,7 @@ const (
 func BuildRegisterRequest(id Identity, caps Capabilities) (*strawpb.RegisterRequest, error) {
 	pools := make([]*strawpb.RegisterRequest_PoolRef, 0, len(caps.AllowedPools))
 	for _, p := range caps.AllowedPools {
-		pools = append(pools, &strawpb.RegisterRequest_PoolRef{TenantId: p.GetTenantId(), PoolId: p.GetPoolId()})
+		pools = append(pools, &strawpb.RegisterRequest_PoolRef{DeploymentId: p.GetDeploymentId(), PoolId: p.GetPoolId()})
 	}
 
 	nonce := make([]byte, registrationNonceBytes)
