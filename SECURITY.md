@@ -1,4 +1,6 @@
 # Security policy
 
-Use GitHub Private Vulnerability Reporting. If the affected Straw repository is uncertain, report against
-`beremaran/straw-oss`; the maintainer will coordinate privately. Never include credentials or private traffic.
+GitHub Private Vulnerability Reporting is not available for this private personal-account repository. Do not open a
+public issue. Email berke@kwilabs.com with the affected repository and version or commit, reproduction steps, impact,
+and any suggested mitigation. If the affected Straw repository is uncertain, say so and the maintainer will coordinate
+it privately. Never include real credentials, private traffic, or data belonging to others.
