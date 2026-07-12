@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	strawpb "github.com/beremaran/straw-oss/api/proto/straw/v1"
+	strawpb "github.com/beremaran/straw-protos-go/straw/v1"
 )
 
 const sdkTypesTestChrome120 = "chrome_120"
