@@ -2,6 +2,7 @@ package egress
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,12 +16,14 @@ import (
 )
 
 const (
-	defaultHeartbeatInterval = 5 * time.Second
-	registerTimeout          = 5 * time.Second
-	heartbeatTimeout         = 5 * time.Second
-	registerBackoffFloor     = 1 * time.Second
-	registerBackoffMax       = 30 * time.Second
-	registerBackoffFactor    = 2
+	defaultHeartbeatInterval  = 5 * time.Second
+	registerTimeout           = 5 * time.Second
+	heartbeatTimeout          = 5 * time.Second
+	registerBackoffFloor      = 1 * time.Second
+	registerBackoffMax        = 30 * time.Second
+	registerBackoffFactor     = 2
+	runtimeSnapshotSubject    = "straw.v1.config.snapshot"
+	runtimeSnapshotAckSubject = "straw.v1.config.ack"
 )
 
 // NATSConn is the minimal request/reply surface the SDK session runtime needs.
@@ -35,6 +38,20 @@ type NATSConn interface {
 type AssignmentServer interface {
 	ActiveRequests() uint32
 	Serve(stop <-chan struct{}) error
+}
+
+type runtimeController interface {
+	SetDraining(draining bool)
+	Draining() bool
+}
+
+type runtimeSnapshot struct {
+	ConfigVersion  uint64 `json:"config_version"`
+	WorkerSettings []struct {
+		WorkerID string `json:"worker_id"`
+		Enabled  bool   `json:"enabled"`
+		Draining bool   `json:"draining"`
+	} `json:"worker_settings"`
 }
 
 // AssignmentFactory builds an assignment server for a registered session.
@@ -190,6 +207,35 @@ func runSession(ctx context.Context, conn NATSConn, id Identity, caps Capabiliti
 		return false, err
 	}
 
+	if controller, ok := worker.(runtimeController); ok {
+		sub, subErr := conn.Subscribe(runtimeSnapshotSubject, func(msg *nats.Msg) {
+			var snapshot runtimeSnapshot
+			if json.Unmarshal(msg.Data, &snapshot) != nil {
+				return
+			}
+
+			draining := false
+
+			for _, setting := range snapshot.WorkerSettings {
+				if setting.WorkerID == id.WorkerID {
+					draining = setting.Draining || !setting.Enabled
+
+					break
+				}
+			}
+
+			controller.SetDraining(draining)
+
+			ack, _ := json.Marshal(map[string]any{"worker_id": id.WorkerID, "config_version": snapshot.ConfigVersion, "status": "applied"})
+			_ = conn.Publish(runtimeSnapshotAckSubject, ack)
+		})
+		if subErr == nil {
+			_ = conn.Flush()
+
+			defer func() { _ = sub.Unsubscribe() }()
+		}
+	}
+
 	stop := make(chan struct{})
 	stopServing := sync.OnceFunc(func() { close(stop) })
 
@@ -208,6 +254,9 @@ func runSession(ctx context.Context, conn NATSConn, id Identity, caps Capabiliti
 func runHeartbeatLoop(ctx context.Context, conn NATSConn, id Identity, sessionID string, caps Capabilities, worker AssignmentServer, heartbeatInterval time.Duration, ready *atomic.Bool) bool {
 	sendHeartbeat := func(hbCtx context.Context, draining bool) error {
 		active := worker.ActiveRequests()
+		if controller, ok := worker.(runtimeController); ok {
+			draining = draining || controller.Draining()
+		}
 
 		return Heartbeat(hbCtx, conn, id, sessionID, strawpb.WorkerHealth_WORKER_HEALTH_READY, active, capacityFromConcurrency(active, caps.MaxConcurrency), caps.MaxConcurrency, draining)
 	}

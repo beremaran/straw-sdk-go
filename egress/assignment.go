@@ -100,6 +100,22 @@ func (w *Worker) ActiveRequests() uint32 {
 	return w.active
 }
 
+// SetDraining applies a runtime-administration lifecycle decision. Existing
+// requests continue; new assignments are rejected.
+func (w *Worker) SetDraining(draining bool) {
+	w.mu.Lock()
+	w.draining = draining
+	w.mu.Unlock()
+}
+
+// Draining reports the current runtime-administration lifecycle decision.
+func (w *Worker) Draining() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return w.draining
+}
+
 // Serve subscribes to the exact-session assignment subject until stop closes.
 func (w *Worker) Serve(stop <-chan struct{}) error {
 	subject, err := AssignmentSubject(w.id.WorkerID, w.sessionID)
