@@ -1,0 +1,6 @@
+.PHONY: check
+
+check:
+	test -z "$$(gofmt -l $$(find . -name '*.go'))"
+	go vet ./...
+	go test ./...

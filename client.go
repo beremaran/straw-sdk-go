@@ -1,5 +1,5 @@
 // Package sdk provides a minimal Go client for Straw's public API.
-package sdk
+package straw
 
 import (
 	"bytes"
