@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -32,7 +33,7 @@ func (r HTTPBodyRefResolver) DownloadBodyRef(ctx context.Context, frame *strawpb
 		return nil, failure
 	}
 
-	body, failure := r.fetch(ctx, ref)
+	body, failure := r.fetch(ctx, ref, frame.GetExpectedSizeBytes())
 	if failure != nil {
 		return nil, failure
 	}
@@ -57,7 +58,7 @@ func (r HTTPBodyRefResolver) validate(frame *strawpb.BodyRefFrame) (*strawpb.S3B
 	return ref, nil
 }
 
-func (r HTTPBodyRefResolver) fetch(ctx context.Context, ref *strawpb.S3BodyRef) ([]byte, *strawpb.ErrorFrame) {
+func (r HTTPBodyRefResolver) fetch(ctx context.Context, ref *strawpb.S3BodyRef, expected uint64) ([]byte, *strawpb.ErrorFrame) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ref.GetSignedUrl(), nil)
 	if err != nil {
 		return nil, bodyRefFailure(bodyRefUnavailableFact)
@@ -73,7 +74,11 @@ func (r HTTPBodyRefResolver) fetch(ctx context.Context, ref *strawpb.S3BodyRef) 
 		return nil, bodyRefFailure(bodyRefUnavailableFact)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	if expected >= math.MaxInt64 {
+		return nil, bodyRefFailure(bodyRefSizeMismatchFact)
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, int64(expected)+1))
 	if err != nil {
 		return nil, bodyRefFailure(bodyRefUnavailableFact)
 	}
@@ -98,7 +103,7 @@ func (r HTTPBodyRefResolver) now() time.Time {
 }
 
 func verifyBodyRef(frame *strawpb.BodyRefFrame, body []byte) *strawpb.ErrorFrame {
-	if want := frame.GetExpectedSizeBytes(); want > 0 && want != uint64(len(body)) {
+	if want := frame.GetExpectedSizeBytes(); (want > 0 || frame.GetSha256Hex() != "") && want != uint64(len(body)) {
 		return bodyRefFailure(bodyRefSizeMismatchFact)
 	}
 

@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -26,6 +27,34 @@ func TestClientDo(t *testing.T) {
 	}
 	if response.Status != http.StatusOK || response.RequestID != "req_1" {
 		t.Fatalf("response = %+v", response)
+	}
+}
+
+func TestClientReceiptLifecycleMethods(t *testing.T) {
+	t.Parallel()
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Header.Get("Authorization") != "Bearer secret" {
+			t.Errorf("auth=%q", r.Header.Get("Authorization"))
+		}
+		if calls == 1 && (r.Method != http.MethodPost || r.URL.Path != receiptsPath) {
+			t.Errorf("create request=%s %s", r.Method, r.URL.Path)
+		}
+		if calls == 2 && (r.Method != http.MethodPut || r.ContentLength != 4) {
+			t.Errorf("part request=%s size=%d", r.Method, r.ContentLength)
+		}
+		_, _ = w.Write([]byte(`{"receipt_id":"rcpt_1","direction":"request","state":"uploading","size_bytes":4,"sha256_hex":"sum"}`))
+	}))
+	defer server.Close()
+	client := NewClient(server.URL, "secret")
+	receipt, err := client.CreateReceipt(context.Background(), CreateReceiptInput{Direction: "request", SizeBytes: 4, SHA256Hex: "sum"})
+	if err != nil || receipt.ReceiptID != "rcpt_1" {
+		t.Fatalf("CreateReceipt=%#v %v", receipt, err)
+	}
+	_, err = client.UploadReceiptPart(context.Background(), receipt.ReceiptID, 1, bytes.NewReader([]byte("body")), 4, "")
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 

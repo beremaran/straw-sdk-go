@@ -11,6 +11,7 @@ type Request struct {
 	FingerprintProfile string       `json:"fingerprint_profile,omitempty"`
 	TimeoutMs          uint64       `json:"timeout_ms,omitempty"`
 	Replayable         bool         `json:"replayable"`
+	ResponseBodyMode   string       `json:"response_body_mode,omitempty"`
 }
 
 // Header carries one ordered HTTP header value as base64-encoded bytes.
@@ -23,6 +24,7 @@ type Header struct {
 type RequestBody struct {
 	Mode       string `json:"mode"`
 	DataBase64 string `json:"data_base64,omitempty"`
+	ReceiptID  string `json:"receipt_id,omitempty"`
 }
 
 // Response is the Straw success envelope. Status is the upstream HTTP status;
@@ -40,6 +42,30 @@ type ResponseBody struct {
 	Mode       string `json:"mode"`
 	DataBase64 string `json:"data_base64,omitempty"`
 	Truncated  bool   `json:"truncated"`
+	ReceiptID  string `json:"receipt_id,omitempty"`
+	SizeBytes  uint64 `json:"size_bytes,omitempty"`
+	SHA256Hex  string `json:"sha256_hex,omitempty"`
+}
+
+// Receipt is a durable request or response body and its lifecycle state.
+type Receipt struct {
+	ReceiptID          string `json:"receipt_id"`
+	Direction          string `json:"direction"`
+	State              string `json:"state"`
+	SizeBytes          int64  `json:"size_bytes"`
+	SHA256Hex          string `json:"sha256_hex"`
+	StatusURL          string `json:"status_url"`
+	PartUploadTemplate string `json:"part_upload_template,omitempty"`
+	CompleteURL        string `json:"complete_url,omitempty"`
+	DownloadURL        string `json:"download_url,omitempty"`
+}
+
+// CreateReceiptInput declares the final object before upload begins.
+type CreateReceiptInput struct {
+	Direction      string `json:"direction"`
+	SizeBytes      int64  `json:"size_bytes"`
+	SHA256Hex      string `json:"sha256_hex"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
 // Timing reports request phase durations in milliseconds.
