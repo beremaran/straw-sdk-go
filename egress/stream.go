@@ -3,7 +3,7 @@ package egress
 import (
 	"time"
 
-	strawpb "github.com/beremaran/straw-oss/v2/api/proto/straw/v1"
+	strawpb "github.com/beremaran/straw-oss/api/proto/straw/v1"
 )
 
 type frameOutcome int
