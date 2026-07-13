@@ -3,11 +3,31 @@ package straw
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
+
+func TestRequestMarshalsRoutingHints(t *testing.T) {
+	t.Parallel()
+
+	raw, err := json.Marshal(Request{Method: http.MethodGet, URL: "https://example.com", Routing: &RoutingHints{
+		Tags: []string{"premium"}, Country: "AU", Region: "ap-southeast-2", IPType: "residential", StickySessionID: "cart-123",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	routing, ok := envelope["routing"].(map[string]any)
+	if !ok || routing["country"] != "AU" || routing["sticky_session_id"] != "cart-123" {
+		t.Fatalf("routing = %#v", envelope["routing"])
+	}
+}
 
 func TestClientDo(t *testing.T) {
 	t.Parallel()

@@ -4,14 +4,24 @@ import "net/http"
 
 // Request is the JSON envelope for POST /api/v1/requests.
 type Request struct {
-	Method             string       `json:"method"`
-	URL                string       `json:"url"`
-	Headers            []Header     `json:"headers,omitempty"`
-	Body               *RequestBody `json:"body,omitempty"`
-	FingerprintProfile string       `json:"fingerprint_profile,omitempty"`
-	TimeoutMs          uint64       `json:"timeout_ms,omitempty"`
-	Replayable         bool         `json:"replayable"`
-	ResponseBodyMode   string       `json:"response_body_mode,omitempty"`
+	Method             string        `json:"method"`
+	URL                string        `json:"url"`
+	Headers            []Header      `json:"headers,omitempty"`
+	Body               *RequestBody  `json:"body,omitempty"`
+	Routing            *RoutingHints `json:"routing,omitempty"`
+	FingerprintProfile string        `json:"fingerprint_profile,omitempty"`
+	TimeoutMs          uint64        `json:"timeout_ms,omitempty"`
+	Replayable         bool          `json:"replayable"`
+	ResponseBodyMode   string        `json:"response_body_mode,omitempty"`
+}
+
+// RoutingHints constrain routing-rule matching and worker selection for one request.
+type RoutingHints struct {
+	Tags            []string `json:"tags,omitempty"`
+	Country         string   `json:"country,omitempty"`
+	Region          string   `json:"region,omitempty"`
+	IPType          string   `json:"ip_type,omitempty"`
+	StickySessionID string   `json:"sticky_session_id,omitempty"`
 }
 
 // Header carries one ordered HTTP header value as base64-encoded bytes.
