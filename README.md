@@ -12,7 +12,13 @@ import (
 It depends on the exact private `straw-protos-go` tag recorded in `go.mod` and never imports private runtime packages.
 The canonical HTTP Egress product implementation remains in `straw-oss`.
 
-Per-request worker constraints and affinity are available through `Request.Routing` and `RoutingHints`.
+Per-request worker constraints and affinity are available through `Request.Routing` and `RoutingHints`. The routing
+object is serialized exactly as Straw's `POST /api/v1/requests` contract expects:
+`tags`, `country`, `region`, `ip_type`, and `sticky_session_id`.
+
+`GET`, `HEAD`, and `OPTIONS` requests serialize `replayable: true` by default. The legacy `Request.Replayable bool`
+field remains source-compatible; use `ReplayableOverride: straw.BoolPtr(false)` when an explicit false is required for
+one of those methods.
 
 ```sh
 make check

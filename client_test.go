@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
@@ -24,8 +25,120 @@ func TestRequestMarshalsRoutingHints(t *testing.T) {
 		t.Fatal(err)
 	}
 	routing, ok := envelope["routing"].(map[string]any)
-	if !ok || routing["country"] != "AU" || routing["sticky_session_id"] != "cart-123" {
+	if !ok || len(routing) != 5 || routing["country"] != "AU" || routing["region"] != "ap-southeast-2" || routing["ip_type"] != "residential" || routing["sticky_session_id"] != "cart-123" {
 		t.Fatalf("routing = %#v", envelope["routing"])
+	}
+	if tags, ok := routing["tags"].([]any); !ok || len(tags) != 1 || tags[0] != "premium" {
+		t.Fatalf("routing.tags = %#v", routing["tags"])
+	}
+}
+
+func TestRequestReplayableDefaultsAndExplicitFalse(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		request  Request
+		expected bool
+	}{
+		{name: "GET default", request: Request{Method: http.MethodGet}, expected: true},
+		{name: "HEAD default", request: Request{Method: http.MethodHead}, expected: true},
+		{name: "OPTIONS default", request: Request{Method: http.MethodOptions}, expected: true},
+		{name: "POST legacy false", request: Request{Method: http.MethodPost}, expected: false},
+		{name: "GET explicit false", request: Request{Method: http.MethodGet, ReplayableOverride: BoolPtr(false)}, expected: false},
+		{name: "GET explicit true", request: Request{Method: http.MethodGet, ReplayableOverride: BoolPtr(true)}, expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw, err := json.Marshal(tt.request)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			var envelope map[string]any
+			if err := json.Unmarshal(raw, &envelope); err != nil {
+				t.Fatal(err)
+			}
+			if got, ok := envelope["replayable"].(bool); !ok || got != tt.expected {
+				t.Fatalf("replayable = %#v, want %v", envelope["replayable"], tt.expected)
+			}
+		})
+	}
+}
+
+func TestClientDoSerializesExplicitReplayableFalse(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var envelope map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
+			t.Errorf("decode request: %v", err)
+			return
+		}
+		if got, ok := envelope["replayable"].(bool); !ok || got {
+			t.Errorf("replayable = %#v, want false", envelope["replayable"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"request_id":"req_explicit_false","status":200,"body":{"mode":"inline_base64","truncated":false},"timing":{}}`))
+	}))
+	defer server.Close()
+
+	_, err := NewClient(server.URL, "").Do(context.Background(), Request{
+		Method:             http.MethodGet,
+		URL:                "https://example.com",
+		ReplayableOverride: BoolPtr(false),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClientDoCanSerializeRequestConcurrently(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var envelope map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
+			t.Errorf("decode request: %v", err)
+			return
+		}
+		if got, ok := envelope["replayable"].(bool); !ok || !got {
+			t.Errorf("replayable = %#v, want true", envelope["replayable"])
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"request_id":"req_concurrent","status":200,"body":{"mode":"inline_base64","truncated":false},"timing":{}}`))
+	}))
+	defer server.Close()
+
+	request := Request{
+		Method:  http.MethodGet,
+		URL:     "https://example.com",
+		Routing: &RoutingHints{Tags: []string{"premium"}, Country: "AU"},
+	}
+	client := NewClient(server.URL, "")
+	const calls = 32
+	var wg sync.WaitGroup
+	errs := make(chan error, calls)
+	for range calls {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := client.Do(context.Background(), request)
+			if err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
+	}
+	if request.Replayable {
+		t.Fatal("Do mutated the caller's request")
 	}
 }
 
@@ -84,13 +197,13 @@ func TestClientDoParsesAPIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"category":"client","code":"auth_failure","message":"Authentication failed","retryable":false}`))
+		_, _ = w.Write([]byte(`{"category":"client","code":"auth_failure","message":"Authentication failed","retryable":false,"request_id":"req_error","details":{"field":"routing.country"}}`))
 	}))
 	defer server.Close()
 
 	_, err := NewClient(server.URL, "wrong").Do(context.Background(), Request{Method: http.MethodGet, URL: "https://example.com"})
 	var apiErr *APIError
-	if !errors.As(err, &apiErr) || apiErr.HTTPStatus != http.StatusUnauthorized || apiErr.Response.Code != "auth_failure" {
+	if !errors.As(err, &apiErr) || apiErr.HTTPStatus != http.StatusUnauthorized || apiErr.Response.Code != "auth_failure" || apiErr.Response.RequestID != "req_error" || apiErr.Response.Details["field"] != "routing.country" || apiErr.Error() != "Authentication failed" {
 		t.Fatalf("error = %#v", err)
 	}
 }

@@ -54,8 +54,6 @@ func WithHTTPClient(httpClient *http.Client) Option {
 
 // Do submits a REST request and returns the Straw success envelope.
 func (c *Client) Do(ctx context.Context, request Request) (*Response, error) {
-	request.applyReplayableDefault()
-
 	raw, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
