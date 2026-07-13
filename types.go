@@ -1,6 +1,9 @@
 package straw
 
-import "net/http"
+import (
+	"encoding/json"
+	"net/http"
+)
 
 // Request is the JSON envelope for POST /api/v1/requests.
 type Request struct {
@@ -11,8 +14,15 @@ type Request struct {
 	Routing            *RoutingHints `json:"routing,omitempty"`
 	FingerprintProfile string        `json:"fingerprint_profile,omitempty"`
 	TimeoutMs          uint64        `json:"timeout_ms,omitempty"`
-	Replayable         bool          `json:"replayable"`
-	ResponseBodyMode   string        `json:"response_body_mode,omitempty"`
+	// Replayable is retained as a bool for source compatibility. For GET,
+	// HEAD, and OPTIONS, its false zero value means "use the client default"
+	// unless ReplayableOverride is provided.
+	Replayable bool `json:"replayable"`
+	// ReplayableOverride supplies presence-sensitive replayability. Set it to
+	// BoolPtr(false) to explicitly disable replayability for a method that is
+	// replayable by default.
+	ReplayableOverride *bool  `json:"-"`
+	ResponseBodyMode   string `json:"response_body_mode,omitempty"`
 }
 
 // RoutingHints constrain routing-rule matching and worker selection for one request.
@@ -22,6 +32,11 @@ type RoutingHints struct {
 	Region          string   `json:"region,omitempty"`
 	IPType          string   `json:"ip_type,omitempty"`
 	StickySessionID string   `json:"sticky_session_id,omitempty"`
+}
+
+// BoolPtr returns a pointer to value for presence-sensitive optional fields.
+func BoolPtr(value bool) *bool {
+	return &value
 }
 
 // Header carries one ordered HTTP header value as base64-encoded bytes.
@@ -112,9 +127,42 @@ func (e *APIError) Error() string {
 	return e.Response.Message
 }
 
-func (r *Request) applyReplayableDefault() {
+func (r Request) effectiveReplayable() bool {
+	if r.ReplayableOverride != nil {
+		return *r.ReplayableOverride
+	}
+
 	switch r.Method {
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
-		r.Replayable = true
+		return true
 	}
+
+	return r.Replayable
+}
+
+// MarshalJSON emits the REST request shape and applies the method default
+// without mutating the request. Avoiding mutation keeps one Request safe to
+// serialize concurrently when its caller does not mutate its fields.
+func (r Request) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Method             string        `json:"method"`
+		URL                string        `json:"url"`
+		Headers            []Header      `json:"headers,omitempty"`
+		Body               *RequestBody  `json:"body,omitempty"`
+		Routing            *RoutingHints `json:"routing,omitempty"`
+		FingerprintProfile string        `json:"fingerprint_profile,omitempty"`
+		TimeoutMs          uint64        `json:"timeout_ms,omitempty"`
+		Replayable         bool          `json:"replayable"`
+		ResponseBodyMode   string        `json:"response_body_mode,omitempty"`
+	}{
+		Method:             r.Method,
+		URL:                r.URL,
+		Headers:            r.Headers,
+		Body:               r.Body,
+		Routing:            r.Routing,
+		FingerprintProfile: r.FingerprintProfile,
+		TimeoutMs:          r.TimeoutMs,
+		Replayable:         r.effectiveReplayable(),
+		ResponseBodyMode:   r.ResponseBodyMode,
+	})
 }
