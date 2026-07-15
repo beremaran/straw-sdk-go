@@ -11,35 +11,24 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
   update:
     runs-on: ubuntu-latest
-    env:
-      GOPRIVATE: github.com/beremaran/*
     steps:
-      - id: app-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        with:
-          app-id: ${{ vars.STRAW_RELEASE_APP_ID }}
-          private-key: ${{ secrets.STRAW_RELEASE_APP_PRIVATE_KEY }}
-          owner: beremaran
-          repositories: straw-protos-go,straw-sdk-go
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          token: ${{ steps.app-token.outputs.token }}
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
       - name: Update exact tag and open PR
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           DISPATCH_TAG: ${{ github.event.client_payload.tag }}
           INPUT_TAG: ${{ inputs.tag }}
         run: |
           tag="$DISPATCH_TAG"; if [ -z "$tag" ]; then tag="$INPUT_TAG"; fi
-          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
           go get "github.com/beremaran/straw-protos-go@$tag"
           go mod tidy
           make check
@@ -51,4 +40,4 @@ jobs:
           git add go.mod go.sum
           git commit -m "Update straw-protos-go to $tag"
           git push -u origin "$branch"
-          gh pr create --title "Update straw-protos-go to $tag" --body "Pins the exact private binding tag and passes the standalone SDK suite." --base main --head "$branch"
+          gh pr create --title "Update straw-protos-go to $tag" --body "Pins the exact public binding tag and passes the standalone SDK suite." --base main --head "$branch"
