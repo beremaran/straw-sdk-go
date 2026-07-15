@@ -9,7 +9,7 @@ import (
 )
 ```
 
-It depends on the exact private `straw-protos-go` tag recorded in `go.mod` and never imports private runtime packages.
+It depends on the exact `straw-protos-go` tag recorded in `go.mod` and never imports runtime-internal packages.
 The canonical HTTP Egress product implementation remains in `straw-oss`.
 
 Per-request worker constraints and affinity are available through `Request.Routing` and `RoutingHints`. The routing
